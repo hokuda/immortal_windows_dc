@@ -1,0 +1,173 @@
+---
+- hosts: localhost
+  gather_facts: no
+  become: False
+  vars:
+    aws_keyname: "hokuda-key-pair"
+    aws_keypath: "~/aws/hokuda-key-pair.pem"
+    aws_imageid: "ami-02812ebb523edc23a" # Microsoft Windows Server 2019 Base
+    aws_instance_type: "t2.micro"
+    aws_region: "ap-northeast-1"
+    aws_instance_name: "hokuda_win2019"
+    aws_security_group: "hokuda-security-group"
+    aws_access_key_value: "set AWS IAM access key here"
+    aws_secret_key_value: "set AWS IAM secret key here"
+    password_path: "./password.txt"
+    public_ip_path: "./public_ip.txt"
+
+  tasks:
+
+    - name: Launch Windows Instance on EC2
+      ec2:
+        aws_access_key: "{{ aws_access_key_value }}"
+        aws_secret_key: "{{ aws_secret_key_value }}"
+        exact_count: 1
+        count_tag:
+          Name: Demo
+        wait: true
+        key_name: "{{ aws_keyname }}"
+        image: "{{ aws_imageid }}"
+        group: "{{ aws_security_group }}"
+        instance_type: "{{ aws_instance_type }}"
+        instance_tags:
+          Name: "{{ aws_instance_name }}"
+        region: "{{ aws_region }}"
+        user_data: |
+          <powershell>
+          $url = "https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1"
+          $file = "$env:temp\ConfigureRemotingForAnsible.ps1"
+          (New-Object -TypeName System.Net.WebClient).DownloadFile($url, $file)
+          powershell.exe -ExecutionPolicy ByPass -File $file
+          </powershell>
+      register: ec2
+
+    - name: Decrypt the Administrator password
+      ec2_win_password:
+        aws_access_key: "{{ aws_access_key_value }}"
+        aws_secret_key: "{{ aws_secret_key_value }}"
+        instance_id: "{{ item.id }}"
+        region: "{{ aws_region }}"
+        key_file: "{{ aws_keypath }}"
+        wait: yes
+        wait_timeout: 600
+      register: win
+      loop: "{{ ec2.instances }}"
+
+    - name: Output the password
+      local_action: copy content="{{ (win.results | first).win_password }}" dest="{{ password_path }}"
+
+    - name: Output the public IP address
+      local_action: copy content="{{ (win.results | first).item.public_ip }}" dest="{{ public_ip_path }}"
+
+    - name: Print the password/IP address
+      debug:
+        msg:
+          - "Administrator's password: {{ (win.results | first).win_password }}"
+          - "Public IP Address: {{ (win.results | first).item.public_ip }}"
+
+    - name: Add a new instance to host group
+      add_host:
+        hostname: "{{ item.public_ip }}"
+        groupname: "launched"
+        ansible_user: Administrator
+        ansible_password: "{{ (win.results | first).win_password }}"
+        ansible_winrm_transport: ntlm
+        ansible_winrm_server_cert_validation: ignore
+      loop: "{{ ec2.instances }}"
+
+- hosts: launched
+  vars:
+    password: "Passw0rd."
+    domain_name: "EXAMPLE.COM"
+    host_name: "spnego.example.com"
+    users_base_dn: "CN=Users,DC=EXAMPLE, DC=COM"
+    service_principal_name: "HTTP/{{ host_name }}@{{ domain_name }}"
+    keytab_path: "C:/Users/Administrator/Documents/{{ host_name }}.keytab"
+    group_name: "group1"
+    user_name: "user1"
+  gather_facts: no
+  connection: winrm
+  tasks:
+
+#    - name: Copy a file to remote (test)
+#      become_method: runas
+#      win_copy:
+#        src: /home/hokuda/ansible_study/ansible_deploy_win_ec2/hoge.txt
+#        dest: 'C:\Users\Administrator\Documents\'
+
+    - name: Install WindowsFeature of AD-Domain-Services
+      #win_shell: Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
+      win_feature:
+        name: AD-Domain-Services
+        include_management_tools: yes
+
+    - name: Promote the server to domain controller
+      #win_shell: Install-ADDSForest -DomainName "EXAMPLE.COM" -SafeModeAdministratorPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -InstallDns:$false -NoRebootOnCompletion:$false -Force:$true
+      #win_shell: Install-ADDSForest -DomainName "EXAMPLE.COM" -SafeModeAdministratorPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -InstallDns:$false -NoRebootOnCompletion:$true -Force:$true
+      win_domain:
+        dns_domain_name: "{{ domain_name }}"
+        safe_mode_password: "{{ password }}"
+        install_dns: no
+      register: dc_promotion
+      
+    - name: Reboot after promotion
+      win_reboot:
+      when: dc_promotion.reboot_required
+
+    - name: pause 2 min
+      pause:
+        seconds: 120
+
+    - name: Wait for WinRM connection just after reboot to ensure WinRM gets started
+      wait_for_connection:
+        timeout: 600
+        sleep: 30
+      ignore_errors: yes
+
+    - name: Wait for LDAP just in case
+      win_wait_for:
+        port: 389
+      ignore_errors: yes
+
+    - name: pause 4 min
+      pause:
+        seconds: 240
+
+    - name: Add a service account
+      #win_shell: New-ADUser -Name "spnego.example.com" -Path "CN=Users,DC=EXAMPLE,DC=COM" -AccountPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -Enabled $true
+      win_user:
+        name: "{{ host_name }}"
+        password: "{{ password }}"
+        password_never_expires: yes
+        path: "{{ users_base_dn }}"
+
+    - name: Create a keytab file against spnego.example.com user
+      win_shell: ktpass -princ {{ service_principal_name }} -mapuser {{ host_name }}@{{ domain_name }} -pass {{ password }} -out {{ keytab_path }} -kvno 0 -ptype KRB5_NT_PRINCIPAL -crypto all
+
+    - name: Download a keytab file
+      #become_method: runas
+      fetch:
+        src: "{{ keytab_path }}"
+        dest: ./
+        flat: yes
+
+    - name: Add group
+      #win_shell: New-ADGroup "{{ group_name }}" -Path "{{ users_base_dn }}"  -GroupCategory Security -GroupScope Global -PassThru –Verbose
+      win_group:
+        name: "{{ group_name }}"
+
+    - name: Add user
+      #win_shell: New-ADUser -Name "user1" -Path "CN=Users,DC=EXAMPLE,DC=COM" -AccountPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -Enabled $true
+      win_user:
+        name: "{{ user_name }}"
+        password: "{{ password }}"
+        password_never_expires: yes
+        path: "{{ users_base_dn }}"
+        #groups: ["{{ group_name }}"]
+
+    - name: Add membership
+      #win_shell: Add-ADGroupMember -Identity group1 -Members user1
+      win_group_membership:
+        name: "{{ group_name }}"
+        members:
+          - "{{ user_name }}@{{ domain_name }}"
