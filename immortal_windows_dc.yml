@@ -1,37 +1,43 @@
 ---
 - hosts: localhost
-  gather_facts: no
+  #gather_facts: no
   become: False
-  vars:
-    aws_keyname: "hokuda-key-pair"
-    aws_keypath: "~/aws/hokuda-key-pair.pem"
-    aws_imageid: "ami-02812ebb523edc23a" # Microsoft Windows Server 2019 Base
-    aws_instance_type: "t2.micro"
-    aws_region: "ap-northeast-1"
-    aws_instance_name: "hokuda_win2019"
-    aws_security_group: "hokuda-security-group"
-    aws_access_key_value: "set AWS IAM access key here"
-    aws_secret_key_value: "set AWS IAM secret key here"
-    password_path: "./password.txt"
-    public_ip_path: "./public_ip.txt"
+  vars_files:
+    - ./settings.yml
 
   tasks:
 
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Get Subnet ID'
+      ec2_vpc_subnet_info:
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        filters:
+          "tag:Name": "{{ subnet.name }}"
+        region: "{{ region }}"
+      register: _subnet_info
+    - debug: var=_subnet_info  verbosity=1
+
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Get Security Group ID'
+      amazon.aws.ec2_group_info:
+        access_key: "{{ access_key }}"
+        secret_key: "{{ secret_key }}"
+        filters:
+          group_name: "{{ security_group }}"
+        region: "{{ region }}"
+      register: _group_info
+    - debug: var=_group_info  verbosity=1
+
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Launch Windows Instance on EC2'
-      ec2:
-        aws_access_key: "{{ aws_access_key_value }}"
-        aws_secret_key: "{{ aws_secret_key_value }}"
-        exact_count: 1
-        count_tag:
-          Name: Demo
+      ec2_instance:
+        access_key: "{{ access_key }}"
+        secret_key: "{{ secret_key }}"
         wait: true
-        key_name: "{{ aws_keyname }}"
-        image: "{{ aws_imageid }}"
-        group: "{{ aws_security_group }}"
-        instance_type: "{{ aws_instance_type }}"
-        instance_tags:
-          Name: "{{ aws_instance_name }}"
-        region: "{{ aws_region }}"
+        key_name: "{{ keyname }}"
+        image_id: "{{ imageid }}"
+        security_group: "{{ _group_info.security_groups[0].group_id }}"
+        instance_type: "{{ instance_type }}"
+        name: "{{ instance_name }}-{{ ansible_date_time.epoch }}"
+        region: "{{ region }}"
         user_data: |
           <powershell>
           $url = "https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1"
@@ -39,63 +45,57 @@
           (New-Object -TypeName System.Net.WebClient).DownloadFile($url, $file)
           powershell.exe -ExecutionPolicy ByPass -File $file
           </powershell>
-      register: ec2
+        vpc_subnet_id: "{{ _subnet_info.subnets[0].subnet_id }}"
+        network:
+          assign_public_ip: true
+      register: _instance
+    - debug: var=_instance verbosity=1
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Decrypt the Administrator password'
       ec2_win_password:
-        aws_access_key: "{{ aws_access_key_value }}"
-        aws_secret_key: "{{ aws_secret_key_value }}"
-        instance_id: "{{ item.id }}"
-        region: "{{ aws_region }}"
-        key_file: "{{ aws_keypath }}"
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        instance_id: "{{ _instance.instances[0].instance_id }}"
+        region: "{{ region }}"
+        key_file: "{{ keypath }}"
         wait: yes
         wait_timeout: 600
       register: win
-      loop: "{{ ec2.instances }}"
+    - debug: var=win verbosity=1
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Output the password'
-      local_action: copy content="{{ (win.results | first).win_password }}" dest="{{ password_path }}"
+      local_action: copy content="{{ win.win_password }}" dest="{{ password_path }}"
 
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Get EC2 instace info'
+      ec2_instance_info:
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        instance_ids: [ "{{ _instance.instances[0].instance_id }}" ]
+        region: "{{ region }}"
+      register: _ec2_instance_info
+    - debug: var=_ec2_instance_info  verbosity=1
+      
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Output the public IP address'
-      local_action: copy content="{{ (win.results | first).item.public_ip }}" dest="{{ public_ip_path }}"
-
-    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Print the password/IP address'
-      debug:
-        msg:
-          - "Administrator's password: {{ (win.results | first).win_password }}"
-          - "Public IP Address: {{ (win.results | first).item.public_ip }}"
+      local_action: copy content="{{ _ec2_instance_info.instances[0].public_ip_address }}" dest="{{ public_ip_path }}"
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add a new instance to host group'
       add_host:
-        hostname: "{{ item.public_ip }}"
+        hostname: "{{ _ec2_instance_info.instances[0].public_ip_address }}"
         groupname: "launched"
         ansible_user: Administrator
-        ansible_password: "{{ (win.results | first).win_password }}"
+        ansible_password: "{{ win.win_password }}"
         ansible_winrm_transport: ntlm
         ansible_winrm_server_cert_validation: ignore
-      loop: "{{ ec2.instances }}"
 
 - hosts: launched
-  vars:
-    password: "Passw0rd."
-    domain_name: "EXAMPLE.COM"
-    host_name: "spnego.example.com"
-    users_base_dn: "CN=Users,DC=EXAMPLE, DC=COM"
-    service_principal_name: "HTTP/{{ host_name }}@{{ domain_name }}"
-    keytab_path: "C:/Users/Administrator/Documents/{{ host_name }}.keytab"
-    group_name: "group1"
-    user_name: "user1"
   gather_facts: no
   connection: winrm
+  vars_files:
+    - ./settings.yml
+
   tasks:
 
-#    - name: Copy a file to remote (test)
-#      become_method: runas
-#      win_copy:
-#        src: /home/hokuda/ansible_study/ansible_deploy_win_ec2/hoge.txt
-#        dest: 'C:\Users\Administrator\Documents\'
-
-    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} pause 1 min'
+    - name: 'pause 1 min'
       pause:
         seconds: 60
 
@@ -109,8 +109,8 @@
       #win_shell: Install-ADDSForest -DomainName "EXAMPLE.COM" -SafeModeAdministratorPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -InstallDns:$false -NoRebootOnCompletion:$false -Force:$true
       #win_shell: Install-ADDSForest -DomainName "EXAMPLE.COM" -SafeModeAdministratorPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -InstallDns:$false -NoRebootOnCompletion:$true -Force:$true
       win_domain:
-        dns_domain_name: "{{ domain_name }}"
-        safe_mode_password: "{{ password }}"
+        dns_domain_name: "{{ ad.domain_name }}"
+        safe_mode_password: "{{ ad.password }}"
         install_dns: no
       register: dc_promotion
       
@@ -128,7 +128,7 @@
         sleep: 30
       ignore_errors: yes
 
-    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }}  Wait for LDAP just in case'
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Wait for LDAP just in case'
       win_wait_for:
         port: 389
       ignore_errors: yes
@@ -140,38 +140,39 @@
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add a service account'
       #win_shell: New-ADUser -Name "spnego.example.com" -Path "CN=Users,DC=EXAMPLE,DC=COM" -AccountPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -Enabled $true
       win_user:
-        name: "{{ host_name }}"
-        password: "{{ password }}"
+        name: "{{ ad.host_name }}"
+        password: "{{ ad.password }}"
         password_never_expires: yes
-        path: "{{ users_base_dn }}"
+        profile: "{{ ad.users_base_dn }}"
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Create a keytab file against spnego.example.com user'
-      win_shell: ktpass -princ {{ service_principal_name }} -mapuser {{ host_name }}@{{ domain_name }} -pass {{ password }} -out {{ keytab_path }} -kvno 0 -ptype KRB5_NT_PRINCIPAL -crypto all
+      win_shell: ktpass -princ {{ ad.service_principal_name }} -mapuser {{ ad.host_name }}@{{ ad.domain_name }} -pass {{ ad.password }} -out {{ ad.keytab_path }} -kvno 0 -ptype KRB5_NT_PRINCIPAL -crypto all
 
-    - name: Download a keytab file
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Download a keytab file'
       #become_method: runas
       fetch:
-        src: "{{ keytab_path }}"
+        src: "{{ ad.keytab_path }}"
         dest: ./
         flat: yes
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add group'
-      #win_shell: New-ADGroup "{{ group_name }}" -Path "{{ users_base_dn }}"  -GroupCategory Security -GroupScope Global -PassThru –Verbose
+      #win_shell: New-ADGroup "{{ ad.group_name }}" -Path "{{ ad.users_base_dn }}"  -GroupCategory Security -GroupScope Global -PassThru –Verbose
       win_group:
-        name: "{{ group_name }}"
+        name: "{{ ad.group_name }}"
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add user'
       #win_shell: New-ADUser -Name "user1" -Path "CN=Users,DC=EXAMPLE,DC=COM" -AccountPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -Enabled $true
       win_user:
-        name: "{{ user_name }}"
-        password: "{{ password }}"
+        name: "{{ ad.user_name }}"
+        password: "{{ ad.password }}"
         password_never_expires: yes
-        path: "{{ users_base_dn }}"
-        #groups: ["{{ group_name }}"]
+        profile: "{{ ad.users_base_dn }}"
+        #path: "{{ ad.users_base_dn }}"
+        #groups: ["{{ ad.group_name }}"]
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add membership'
       #win_shell: Add-ADGroupMember -Identity group1 -Members user1
       win_group_membership:
-        name: "{{ group_name }}"
+        name: "{{ ad.group_name }}"
         members:
-          - "{{ user_name }}@{{ domain_name }}"
+          - "{{ ad.user_name }}@{{ ad.domain_name }}"

@@ -1,0 +1,69 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+  vars_files:
+    - settings.yml
+  tasks:
+    - name: "{{ ansible_date_time.date }} VPC"
+      ec2_vpc_net:
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        name: "{{ vpc.name }}"
+        cidr_block: "{{ vpc.cidr_block }}"
+        region: "{{ region }}"
+      register: _vpc
+    - debug: var=_vpc verbosity=1
+    - name: "Internet gateway"
+      ec2_vpc_igw:
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        vpc_id: "{{ _vpc.vpc.id }}"
+        region: "{{ region }}"
+        tags:
+          name: "{{ igw.name }}"
+      register: _igw
+    - debug: var=_igw verbosity=1
+    - name: "Subnet"
+      ec2_vpc_subnet:
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        vpc_id: "{{ _vpc.vpc.id }}"
+        az: "{{ subnet.az }}"
+        cidr: "{{ subnet.cidr_block }}"
+        resource_tags:
+          Name: "{{ subnet.name }}"
+        region: "{{ region }}"
+      register: _subnet
+    - debug: var=_subnet verbosity=1
+    - name: Route Table
+      ec2_vpc_route_table:
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        vpc_id: "{{ _vpc.vpc.id }}"
+        tags:
+          Name: "{{ route_table.name }}"
+        subnets: "{{ _subnet.subnet.cidr_block }}"
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ _igw.gateway_id  }}"
+        region: "{{ region }}"
+      register: _route_table
+    - debug: var=_route_table verbosity=1
+
+    - name: Security Group
+      ec2_group:
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        vpc_id: "{{ _vpc.vpc.id }}"
+        description: "hokuda-security-group-description"
+        rules:
+          - proto: "-1"
+            cidr_ip: "0.0.0.0/0"
+        rules_egress:
+          - proto: "tcp"
+            cidr_ip: "0.0.0.0/0"
+            from_port: 0
+            to_port: 65535
+        region: "{{ region }}"
+        name: "{{ security_group }}"
