@@ -4,9 +4,14 @@ This is the Ansible Playbook to create Windows Domain Controller instance on EC2
 
 ## Usage:
 
-1. modify `vars:` corresponding to your setup.
+1. copy settings.yml.template to your_own_setting.yml, and modify it as you like
 
-2. run `ansible-playbook -i hosts immortal_windows_dc.yml` which yields:
+2. run:
+
+		ansible-playbook -vvv -i hosts ./immortal_vpc.yml -e @your_own_setting.yml
+		ansible-playbook -v -i hosts ./immortal_windows_dc.yml -e @your_own_setting.yml
+
+   which yields:
 
     * windows server instance
     * `./password.txt`

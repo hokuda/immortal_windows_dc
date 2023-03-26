@@ -1,33 +1,35 @@
 ---
 access_key: "XXXXX2XX3XX4XXXXX3XX" # set AWS IAM access key here
 secret_key: "xX5x/XXxxx8XX+xxXXXxx72XxxXxxXxxxXX/X3xX" # set AWS IAM secret key here
+keyname: "hokuda-key-pair"
+keypath: "~/aws/hokuda-key-pair.pem"
 region: "ap-northeast-1"
 vpc:
   name: "hokuda-vpc-1"
-  cidr_block: "10.1.0.0/16"
+  cidr_block: "10.3.0.0/16"
 igw:
   name: "hokuda-igw-1"
 subnet:
   name: "hokuda-subnet-1"
-  cidr_block: "10.1.1.0/24"
+  cidr_block: "10.3.1.0/24"
   az: "ap-northeast-1a"
 route_table:
   name: "hokuda-rt-1"
-keyname: "hokuda-key-pair"
-keypath: "~/aws/hokuda-key-pair.pem"
-imageid: "ami-0b445db4eeb55446e" # Microsoft Windows Server 2019 Base
-instance_type: "t2.micro"
-instance_name: "hokuda_win2019_example1"
-security_group: "hokuda-security-group"
-password_path: "./password.txt"
-public_ip_path: "./public_ip.txt"
+security_group:
+  name: "hokuda-security-group-1"
+ec2:
+  imageid: "ami-0a110ffc6a6061628" # Microsoft Windows Server 2019 Base
+  instance_type: "t2.micro"
+  instance_name: "hokuda_win2019_example1-vpc1"
+  password_path:  "./passwd1.txt"
+  public_ip_path: "./ipaddr1.txt"
 
 # AD config
 ad:
   domain_name: "EXAMPLE1.COM"
   host_name: "spnego.example.com"
   users_base_dn: "CN=Users,DC=EXAMPLE1, DC=COM"
-  service_principal_name: "HTTP/spnego.example.com@EXAMPLE.COM"
+  service_principal_name: "HTTP/spnego.example.com@EXAMPLE1.COM"
   keytab_path: "C:/Users/Administrator/Documents/spnego.example.com.keytab"
   group_name: "group1"
   user_name: "user1"

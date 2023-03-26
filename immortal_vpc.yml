@@ -2,8 +2,9 @@
 - hosts: localhost
   connection: local
   gather_facts: no
-  vars_files:
-    - settings.yml
+#  vars_files:
+#    - ./settings.yml
+
   tasks:
     - name: "{{ ansible_date_time.date }} VPC"
       ec2_vpc_net:
@@ -56,14 +57,14 @@
         aws_access_key: "{{ access_key }}"
         aws_secret_key: "{{ secret_key }}"
         vpc_id: "{{ _vpc.vpc.id }}"
-        description: "hokuda-security-group-description"
+        description: "security-group-description"
         rules:
           - proto: "-1"
             cidr_ip: "0.0.0.0/0"
         rules_egress:
-          - proto: "tcp"
+          - proto: "-1"
             cidr_ip: "0.0.0.0/0"
             from_port: 0
             to_port: 65535
         region: "{{ region }}"
-        name: "{{ security_group }}"
+        name: "{{ security_group.name }}"

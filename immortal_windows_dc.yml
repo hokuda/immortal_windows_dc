@@ -2,8 +2,8 @@
 - hosts: localhost
   #gather_facts: no
   become: False
-  vars_files:
-    - ./settings.yml
+#  vars_files:
+#    - ./settings.yml
 
   tasks:
 
@@ -22,7 +22,7 @@
         access_key: "{{ access_key }}"
         secret_key: "{{ secret_key }}"
         filters:
-          group_name: "{{ security_group }}"
+          group_name: "{{ security_group.name }}"
         region: "{{ region }}"
       register: _group_info
     - debug: var=_group_info  verbosity=1
@@ -33,10 +33,10 @@
         secret_key: "{{ secret_key }}"
         wait: true
         key_name: "{{ keyname }}"
-        image_id: "{{ imageid }}"
+        image_id: "{{ ec2.imageid }}"
         security_group: "{{ _group_info.security_groups[0].group_id }}"
-        instance_type: "{{ instance_type }}"
-        name: "{{ instance_name }}-{{ ansible_date_time.epoch }}"
+        instance_type: "{{ ec2.instance_type }}"
+        name: "{{ ec2.instance_name }}-{{ ansible_date_time.epoch }}"
         region: "{{ region }}"
         user_data: |
           <powershell>
@@ -64,7 +64,7 @@
     - debug: var=win verbosity=1
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Output the password'
-      local_action: copy content="{{ win.win_password }}" dest="{{ password_path }}"
+      local_action: copy content="{{ win.win_password }}" dest="{{ ec2.password_path }}"
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Get EC2 instace info'
       ec2_instance_info:
@@ -76,7 +76,7 @@
     - debug: var=_ec2_instance_info  verbosity=1
       
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Output the public IP address'
-      local_action: copy content="{{ _ec2_instance_info.instances[0].public_ip_address }}" dest="{{ public_ip_path }}"
+      local_action: copy content="{{ _ec2_instance_info.instances[0].public_ip_address }}" dest="{{ ec2.public_ip_path }}"
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add a new instance to host group'
       add_host:
@@ -99,11 +99,18 @@
       pause:
         seconds: 60
 
+#    - name: 'pause 2 min'
+#      pause:
+#        seconds: 120
+
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Install WindowsFeature of AD-Domain-Services'
       #win_shell: Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
       win_feature:
         name: AD-Domain-Services
         include_management_tools: yes
+#      win_feature:
+#        name: DNS
+#        include_management_tools: yes
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Promote the server to domain controller'
       #win_shell: Install-ADDSForest -DomainName "EXAMPLE.COM" -SafeModeAdministratorPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -InstallDns:$false -NoRebootOnCompletion:$false -Force:$true
@@ -121,6 +128,11 @@
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} pause 2 min'
       pause:
         seconds: 120
+
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Install WindowsFeature of DNS'
+      win_feature:
+        name: DNS
+        include_management_tools: yes
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Wait for WinRM connection just after reboot to ensure WinRM gets started'
       wait_for_connection:
