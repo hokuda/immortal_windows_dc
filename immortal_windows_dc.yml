@@ -151,11 +151,22 @@
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add a service account'
       #win_shell: New-ADUser -Name "spnego.example.com" -Path "CN=Users,DC=EXAMPLE,DC=COM" -AccountPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -Enabled $true
-      win_user:
+      #win_user:
+      #  name: "{{ ad.host_name }}"
+      #  password: "{{ ad.password }}"
+      #  password_never_expires: yes
+      #  profile: "{{ ad.users_base_dn }}"
+      # not able to enable AES with win_user, hence, move to win_domain_user
+      # ref: https://learn.microsoft.com/ja-jp/troubleshoot/windows-server/identity/useraccountcontrol-manipulate-account-properties
+      
+      win_domain_user:
         name: "{{ ad.host_name }}"
         password: "{{ ad.password }}"
         password_never_expires: yes
-        profile: "{{ ad.users_base_dn }}"
+        path: "{{ ad.users_base_dn }}"
+        state: present
+        attributes:
+          msDS-SupportedEncryptionTypes: 24
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Create a keytab file against spnego.example.com user'
       win_shell: ktpass -princ {{ ad.service_principal_name }} -mapuser {{ ad.host_name }}@{{ ad.domain_name }} -pass {{ ad.password }} -out {{ ad.keytab_path }} -kvno 0 -ptype KRB5_NT_PRINCIPAL -crypto all
