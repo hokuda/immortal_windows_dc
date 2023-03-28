@@ -4,6 +4,7 @@ secret_key: "xX5x/XXxxx8XX+xxXXXxx72XxxXxxXxxxXX/X3xX" # set AWS IAM secret key 
 keyname: "hokuda-key-pair"
 keypath: "~/aws/hokuda-key-pair.pem"
 region: "ap-northeast-1"
+server_info_path: "./server1.json"
 vpc:
   name: "hokuda-vpc-1"
   cidr_block: "10.3.0.0/16"
@@ -21,8 +22,6 @@ ec2:
   imageid: "ami-0a110ffc6a6061628" # Microsoft Windows Server 2019 Base
   instance_type: "t2.micro"
   instance_name: "hokuda_win2019_example1-vpc1"
-  password_path:  "./passwd1.txt"
-  public_ip_path: "./ipaddr1.txt"
 
 # AD config
 ad:

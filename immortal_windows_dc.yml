@@ -60,11 +60,8 @@
         key_file: "{{ keypath }}"
         wait: yes
         wait_timeout: 600
-      register: win
-    - debug: var=win verbosity=1
-
-    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Output the password'
-      local_action: copy content="{{ win.win_password }}" dest="{{ ec2.password_path }}"
+      register: _win
+    - debug: var=_win verbosity=1
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Get EC2 instace info'
       ec2_instance_info:
@@ -75,17 +72,21 @@
       register: _ec2_instance_info
     - debug: var=_ec2_instance_info  verbosity=1
       
-    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Output the public IP address'
-      local_action: copy content="{{ _ec2_instance_info.instances[0].public_ip_address }}" dest="{{ ec2.public_ip_path }}"
-
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add a new instance to host group'
       add_host:
         hostname: "{{ _ec2_instance_info.instances[0].public_ip_address }}"
         groupname: "launched"
         ansible_user: Administrator
-        ansible_password: "{{ win.win_password }}"
+        ansible_password: "{{ _win.win_password }}"
         ansible_winrm_transport: ntlm
         ansible_winrm_server_cert_validation: ignore
+
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Output the server info to the json file'
+      vars:
+        _server_info:
+          instance: "{{ _ec2_instance_info.instances[0] }}"
+          password: "{{ _win.win_password }}"
+      local_action: copy content="{{ _server_info }}" dest="{{ server_info_path }}"
 
 - hosts: launched
   gather_facts: no
