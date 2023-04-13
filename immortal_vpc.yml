@@ -30,7 +30,7 @@
         aws_access_key: "{{ access_key }}"
         aws_secret_key: "{{ secret_key }}"
         vpc_id: "{{ _vpc.vpc.id }}"
-        az: "{{ subnet.az }}"
+        az: "{{ available_zone }}"
         cidr: "{{ subnet.cidr_block }}"
         resource_tags:
           Name: "{{ subnet.name }}"

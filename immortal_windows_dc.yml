@@ -33,9 +33,9 @@
         secret_key: "{{ secret_key }}"
         wait: true
         key_name: "{{ keyname }}"
-        image_id: "{{ ec2.imageid }}"
+        image_id: "{{ image_id }}"
         security_group: "{{ _group_info.security_groups[0].group_id }}"
-        instance_type: "{{ ec2.instance_type }}"
+        instance_type: "{{ instance_type }}"
         name: "{{ ec2.instance_name }}-{{ ansible_date_time.epoch }}"
         region: "{{ region }}"
         user_data: |

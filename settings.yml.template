@@ -5,6 +5,9 @@ keyname: "hokuda-key-pair"
 keypath: "~/aws/hokuda-key-pair.pem"
 region: "ap-northeast-1"
 server_info_path: "./server1.json"
+available_zone: "ap-northeast-1a"
+image_id: "ami-0a110ffc6a6061628" # Microsoft Windows Server 2019 Base
+instance_type: "t2.micro"
 vpc:
   name: "hokuda-vpc-1"
   cidr_block: "10.3.0.0/16"
@@ -13,14 +16,11 @@ igw:
 subnet:
   name: "hokuda-subnet-1"
   cidr_block: "10.3.1.0/24"
-  az: "ap-northeast-1a"
 route_table:
   name: "hokuda-rt-1"
 security_group:
   name: "hokuda-security-group-1"
 ec2:
-  imageid: "ami-0a110ffc6a6061628" # Microsoft Windows Server 2019 Base
-  instance_type: "t2.micro"
   instance_name: "hokuda_win2019_example1-vpc1"
 
 # AD config
