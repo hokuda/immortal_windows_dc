@@ -6,7 +6,6 @@ instance_suffix: "1"
 keyname: "hokuda-key-pair"
 keypath: "~/aws/hokuda-key-pair.pem"
 region: "ap-northeast-1"
-server_info_path: "./server1.json"
 available_zone: "ap-northeast-1a"
 image_id: "ami-0a110ffc6a6061628" # Microsoft Windows Server 2019 Base
 instance_type: "t2.micro"

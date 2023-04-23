@@ -8,19 +8,18 @@ This is the Ansible Playbook to create Windows Domain Controller instance on EC2
 
 2. run:
 
-		ansible-playbook -vvv -i hosts ./immortal_vpc.yml -e @your_own_setting.yml
+		ansible-playbook -v -i hosts ./immortal_vpc.yml -e @your_own_setting.yml
 		ansible-playbook -v -i hosts ./immortal_windows_dc.yml -e @your_own_setting.yml
 
    which yields:
 
     * windows server instance
-    * `./password.txt`
-    * `./public_ip.txt`
-    * `./{{host_name}}.keytab`
+    * `./{{instance name}}.json`
+    * `./{{instance name}}.keytab`
     
 * You can access the Windows desktop via:
 
-        xfreerdp /u:Administrator /v:`cat ./public_ip.txt` /p:`cat password.txt` /cert:tofu
+        xfreerdp /u:Administrator /v:`jq -r .instance.public_ip_address ./{{instance name}}.json` /p:`jq -r .password ./{{instance name}}.json` /cert:tofu
 
 ## Prerequisites:
 

@@ -86,13 +86,12 @@
         _server_info:
           instance: "{{ _ec2_instance_info.instances[0] }}"
           password: "{{ _win.win_password }}"
+        server_info_path: "{{ _ec2_instance_info.instances[0].tags.Name }}.json"
       local_action: copy content="{{ _server_info }}" dest="{{ server_info_path }}"
 
 - hosts: launched
   gather_facts: no
   connection: winrm
-  vars_files:
-    - ./settings.yml
 
   tasks:
 
@@ -176,7 +175,7 @@
       #become_method: runas
       fetch:
         src: "{{ ad.keytab_path }}"
-        dest: ./
+        dest: "./{{ hostvars['localhost']._ec2_instance_info.instances[0].tags.Name }}.keytab"
         flat: yes
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add group'
