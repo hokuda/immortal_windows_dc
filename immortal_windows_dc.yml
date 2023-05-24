@@ -95,13 +95,9 @@
 
   tasks:
 
-    - name: 'pause 1 min'
+    - name: 'pause 2 min'
       pause:
-        seconds: 60
-
-#    - name: 'pause 2 min'
-#      pause:
-#        seconds: 120
+        seconds: 120
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Install WindowsFeature of AD-Domain-Services'
       #win_shell: Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
