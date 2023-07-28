@@ -86,6 +86,7 @@
         _server_info:
           instance: "{{ _ec2_instance_info.instances[0] }}"
           password: "{{ _win.win_password }}"
+          domain_name: "{{ ad.domain_name }}"
         server_info_path: "{{ _ec2_instance_info.instances[0].tags.Name }}.json"
       local_action: copy content="{{ _server_info }}" dest="{{ server_info_path }}"
 
