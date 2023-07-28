@@ -27,7 +27,7 @@
       register: _group_info
     - debug: var=_group_info  verbosity=1
 
-    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Launch Windows Instance on EC2'
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Launch Windows Instance on EC2 enabling WinRM'
       ec2_instance:
         access_key: "{{ access_key }}"
         secret_key: "{{ secret_key }}"
@@ -40,7 +40,7 @@
         region: "{{ region }}"
         user_data: |
           <powershell>
-          $url = "https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1"
+          $url = "https://raw.githubusercontent.com/ansible/ansible/stable-2.14/examples/scripts/ConfigureRemotingForAnsible.ps1"
           $file = "$env:temp\ConfigureRemotingForAnsible.ps1"
           (New-Object -TypeName System.Net.WebClient).DownloadFile($url, $file)
           powershell.exe -ExecutionPolicy ByPass -File $file
@@ -95,9 +95,8 @@
 
   tasks:
 
-    - name: 'pause 2 min'
-      pause:
-        seconds: 120
+    - name: Example from an Ansible Playbook
+      ansible.windows.win_ping:
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Install WindowsFeature of AD-Domain-Services'
       #win_shell: Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
