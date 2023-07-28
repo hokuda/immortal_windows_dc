@@ -7,7 +7,7 @@ keyname: "hokuda-key-pair"
 keypath: "~/aws/hokuda-key-pair.pem"
 region: "ap-northeast-1"
 available_zone: "ap-northeast-1a"
-image_id: "ami-0a110ffc6a6061628" # Microsoft Windows Server 2019 Base
+image_id: "ami-035f902e3a175fb99" # Microsoft Windows Server 2019 Base
 instance_type: "t2.micro"
 vpc:
   name: "hokuda-vpc-{{ vpc_suffix }}"
@@ -26,11 +26,11 @@ ec2:
 
 # AD config
 ad:
-  domain_name: "EXAMPLE1.COM"
+  domain_name: "EXAMPLE{{ instance_suffix }}.COM"
   host_name: "spnego.example.com"
-  users_base_dn: "CN=Users,DC=EXAMPLE1, DC=COM"
-  service_principal_name: "HTTP/spnego.example.com@EXAMPLE1.COM"
+  users_base_dn: "CN=Users,DC=EXAMPLE{{ instance_suffix }}, DC=COM"
+  service_principal_name: "HTTP/spnego.example.com@EXAMPLE{{ instance_suffix }}.COM"
   keytab_path: "C:/Users/Administrator/Documents/spnego.example.com.keytab"
-  group_name: "group1"
-  user_name: "user1"
+  group_name: "group{{ instance_suffix }}"
+  user_name: "user{{ instance_suffix }}"
   password: "Passw0rd."
