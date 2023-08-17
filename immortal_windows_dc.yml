@@ -40,7 +40,7 @@
         region: "{{ region }}"
         user_data: |
           <powershell>
-          $url = "https://raw.githubusercontent.com/ansible/ansible/stable-2.14/examples/scripts/ConfigureRemotingForAnsible.ps1"
+          $url = "https://raw.githubusercontent.com/hokuda/immortal_windows_dc/main/ConfigureRemotingForAnsible.ps1"
           $file = "$env:temp\ConfigureRemotingForAnsible.ps1"
           (New-Object -TypeName System.Net.WebClient).DownloadFile($url, $file)
           powershell.exe -ExecutionPolicy ByPass -File $file
