@@ -1,6 +1,4 @@
 ---
-access_key: "XXXXX2XX3XX4XXXXX3XX" # set AWS IAM access key here
-secret_key: "xX5x/XXxxx8XX+xxXXXxx72XxxXxxXxxxXX/X3xX" # set AWS IAM secret key here
 vpc_suffix: "1"
 instance_suffix: "1"
 keyname: "hokuda-key-pair"

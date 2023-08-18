@@ -4,12 +4,12 @@ This is the Ansible Playbook to create Windows Domain Controller instance on EC2
 
 ## Usage:
 
-1. copy settings.yml.template to your_own_setting.yml, and modify it as you like
+1. copy settings.yml.template to your_own_setting.yml, copy key.yml.template to key.yml, and modify them as you like
 
 2. run:
 
-		ansible-playbook -v -i hosts ./immortal_vpc.yml -e @your_own_setting.yml
-		ansible-playbook -v -i hosts ./immortal_windows_dc.yml -e @your_own_setting.yml
+		ansible-playbook -v -i hosts ./immortal_vpc.yml -e @key.yml -e @your_own_setting.yml
+		ansible-playbook -v -i hosts ./immortal_windows_dc.yml -e @key.yml -e @your_own_setting.yml
 
    which yields:
 
