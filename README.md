@@ -23,11 +23,10 @@ This is the Ansible Playbook to create Windows Domain Controller instance on EC2
 
 ## Prerequisites:
 
-* Python BOTO module
+* Python BOTO3 module
 
-        pip install boto --user
+        pip install boto3 --user
     
-* Ansible and community.aws module
+* Ansible
 
         sudo dnf install ansible
-        ansible-galaxy collection install community.aws
