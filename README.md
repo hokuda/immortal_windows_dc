@@ -23,9 +23,9 @@ This is the Ansible Playbook to create Windows Domain Controller instance on EC2
 
 ## Prerequisites:
 
-* Python BOTO3 module
+* Python boto3 pywinrm module
 
-        pip install boto3 --user
+        pip install boto3 pywinrm --user
     
 * Ansible
 
