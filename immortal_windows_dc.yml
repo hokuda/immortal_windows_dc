@@ -90,6 +90,19 @@
         server_info_path: "{{ _ec2_instance_info.instances[0].tags.Name }}.json"
       local_action: copy content="{{ _server_info }}" dest="{{ server_info_path }}"
 
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add route53 record'
+      route53:
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        zone: "{{ _route53.zone }}"
+        command: "create"
+        overwrite: true
+        record: "{{ _route53.record }}"
+        type: "A"
+        value: "{{ _ec2_instance_info.instances[0].public_ip_address }}"
+      register: route53_record
+    - debug: var=route53_record
+
 - hosts: launched
   gather_facts: no
   connection: winrm

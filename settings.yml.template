@@ -32,3 +32,8 @@ ad:
   group_name: "group{{ instance_suffix }}"
   user_name: "user{{ instance_suffix }}"
   password: "Passw0rd."
+
+# route53 record
+_route53:
+  zone: "domain name of the route53 zone"
+  record: "fqdn of the host in the route53 zone"
