@@ -36,7 +36,7 @@
         image_id: "{{ image_id }}"
         security_group: "{{ _group_info.security_groups[0].group_id }}"
         instance_type: "{{ instance_type }}"
-        name: "{{ ec2.instance_name }}-{{ ansible_date_time.epoch }}"
+        name: "{{ instance_name }}-{{ ansible_date_time.epoch }}"
         region: "{{ region }}"
         user_data: |
           <powershell>
@@ -86,7 +86,7 @@
         _server_info:
           instance: "{{ _ec2_instance_info.instances[0] }}"
           password: "{{ _win.win_password }}"
-          domain_name: "{{ ad.domain_name }}"
+          domain_name: "{{ kerberos_realm }}"
         server_info_path: "{{ _ec2_instance_info.instances[0].tags.Name }}.json"
       local_action: copy content="{{ _server_info }}" dest="{{ server_info_path }}"
 
@@ -103,14 +103,19 @@
       register: route53_record
     - debug: var=route53_record
 
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} pause 1 min'
+      pause:
+        seconds: 60
+
 - hosts: launched
   gather_facts: no
   connection: winrm
 
   tasks:
 
-    - name: Example from an Ansible Playbook
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} win_pinging'
       ansible.windows.win_ping:
+      ignore_errors: yes
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Install WindowsFeature of AD-Domain-Services'
       #win_shell: Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
@@ -125,8 +130,8 @@
       #win_shell: Install-ADDSForest -DomainName "EXAMPLE.COM" -SafeModeAdministratorPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -InstallDns:$false -NoRebootOnCompletion:$false -Force:$true
       #win_shell: Install-ADDSForest -DomainName "EXAMPLE.COM" -SafeModeAdministratorPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -InstallDns:$false -NoRebootOnCompletion:$true -Force:$true
       win_domain:
-        dns_domain_name: "{{ ad.domain_name }}"
-        safe_mode_password: "{{ ad.password }}"
+        dns_domain_name: "{{ kerberos_realm }}"
+        safe_mode_password: "{{ password }}"
         install_dns: no
       register: dc_promotion
       
@@ -158,7 +163,10 @@
       pause:
         seconds: 240
 
-    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add a service account'
+    ##############
+    ### SPNEGO ###
+    ##############
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add a service account for SPNEGO'
       #win_shell: New-ADUser -Name "spnego.example.com" -Path "CN=Users,DC=EXAMPLE,DC=COM" -AccountPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -Enabled $true
       #win_user:
       #  name: "{{ ad.host_name }}"
@@ -169,28 +177,72 @@
       # ref: https://learn.microsoft.com/ja-jp/troubleshoot/windows-server/identity/useraccountcontrol-manipulate-account-properties
       
       win_domain_user:
-        name: "{{ ad.host_name }}"
-        password: "{{ ad.password }}"
+        name: "{{ spnego.account_name }}"
+        password: "{{ password }}"
         password_never_expires: yes
-        path: "{{ ad.users_base_dn }}"
+        path: "{{ users_base_dn }}"
         state: present
         attributes:
           msDS-SupportedEncryptionTypes: 24
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Create a keytab file against spnego.example.com user'
-      win_shell: ktpass -princ {{ ad.service_principal_name }} -mapuser {{ ad.host_name }}@{{ ad.domain_name }} -pass {{ ad.password }} -out {{ ad.keytab_path }} -kvno 0 -ptype KRB5_NT_PRINCIPAL -crypto all
+      win_shell: ktpass -princ {{ spnego.principal_name }} -mapuser {{ spnego.account_name }}@{{ kerberos_realm }} -pass {{ password }} -out {{ spnego.keytab }} -kvno 0 -ptype KRB5_NT_PRINCIPAL -crypto all
 
-    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Download a keytab file'
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Download a keytab file of SPNEGO'
       #become_method: runas
       fetch:
-        src: "{{ ad.keytab_path }}"
-        dest: "./{{ hostvars['localhost']._ec2_instance_info.instances[0].tags.Name }}.keytab"
+        src: "{{ spnego.keytab }}"
+        dest: "./{{ hostvars['localhost']._ec2_instance_info.instances[0].tags.Name }}.{{ spnego.account_name }}.keytab"
+        flat: yes
+
+    #########################
+    ### PostgreSQL Server ###
+    #########################
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add a service account for PostgreSQL'
+      win_domain_user:
+        name: "{{ postgresql_server.account_name }}"
+        password: "{{ password }}"
+        password_never_expires: yes
+        path: "{{ users_base_dn }}"
+        state: present
+        attributes:
+          msDS-SupportedEncryptionTypes: 24
+
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Create a keytab file against postgresql.example.com user'
+      win_shell: ktpass -princ {{ postgresql_server.principal_name }} -mapuser {{ postgresql_server.account_name }}@{{ kerberos_realm }} -pass {{ password }} -out {{ postgresql_server.keytab }} -kvno 0 -ptype KRB5_NT_PRINCIPAL -crypto all
+
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Download a keytab file of PostgreSQL'
+      fetch:
+        src: "{{ postgresql_server.keytab }}"
+        dest: "./{{ hostvars['localhost']._ec2_instance_info.instances[0].tags.Name }}.{{ postgresql_server.account_name }}.keytab"
+        flat: yes
+
+    #########################
+    ### PostgreSQL Client ###
+    #########################
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add a client account for PostgreSQL'
+      win_domain_user:
+        name: "{{ postgresql_client.account_name }}"
+        password: "{{ password }}"
+        password_never_expires: yes
+        path: "{{ users_base_dn }}"
+        state: present
+        attributes:
+          msDS-SupportedEncryptionTypes: 24
+
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Create a keytab file against postgresql.example.com user'
+      win_shell: ktpass -princ {{ postgresql_client.principal_name }} -mapuser {{ postgresql_client.account_name }}@{{ kerberos_realm }} -pass {{ password }} -out {{ postgresql_client.keytab }} -kvno 0 -ptype KRB5_NT_PRINCIPAL -crypto all
+
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Download a keytab file of PostgreSQL'
+      fetch:
+        src: "{{ postgresql_client.keytab }}"
+        dest: "./{{ hostvars['localhost']._ec2_instance_info.instances[0].tags.Name }}.{{ postgresql_client.account_name }}.keytab"
         flat: yes
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add group'
       #win_shell: New-ADGroup "{{ ad.group_name }}" -Path "{{ ad.users_base_dn }}"  -GroupCategory Security -GroupScope Global -PassThru –Verbose
       win_group:
-        name: "{{ ad.group_name }}"
+        name: "{{ demo_group_name }}"
 
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add user'
       #win_shell: New-ADUser -Name "user1" -Path "CN=Users,DC=EXAMPLE,DC=COM" -AccountPassword (ConvertTo-SecureString -String Passw0rd. -AsPlainText -Force) -Enabled $true
@@ -205,10 +257,10 @@
       # ref: https://learn.microsoft.com/ja-jp/troubleshoot/windows-server/identity/useraccountcontrol-manipulate-account-properties
 
       win_domain_user:
-        name: "{{ ad.user_name }}"
-        password: "{{ ad.password }}"
+        name: "{{ demo_user_name }}"
+        password: "{{ password }}"
         password_never_expires: yes
-        path: "{{ ad.users_base_dn }}"
+        path: "{{ users_base_dn }}"
         state: present
         attributes:
           msDS-SupportedEncryptionTypes: 24
@@ -217,6 +269,6 @@
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Add membership'
       #win_shell: Add-ADGroupMember -Identity group1 -Members user1
       win_group_membership:
-        name: "{{ ad.group_name }}"
+        name: "{{ demo_group_name }}"
         members:
-          - "{{ ad.user_name }}@{{ ad.domain_name }}"
+          - "{{ demo_user_name }}@{{ kerberos_realm }}"
