@@ -230,6 +230,9 @@
         attributes:
           msDS-SupportedEncryptionTypes: 24
 
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Disable preauth of a client account for PostgreSQL'
+      win_shell: Set-ADAccountControl -Id {{ postgresql_client.account_name }} -DoesNotRequirePreAuth:$true
+
     - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Create a keytab file against postgresql.example.com user'
       win_shell: ktpass -princ {{ postgresql_client.principal_name }} -mapuser {{ postgresql_client.account_name }}@{{ kerberos_realm }} -pass {{ password }} -out {{ postgresql_client.keytab }} -kvno 0 -ptype KRB5_NT_PRINCIPAL -crypto all
 
