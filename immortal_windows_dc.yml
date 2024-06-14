@@ -36,7 +36,7 @@
         image_id: "{{ image_id }}"
         security_group: "{{ _group_info.security_groups[0].group_id }}"
         instance_type: "{{ instance_type }}"
-        name: "{{ instance_name }}-{{ ansible_date_time.epoch }}"
+        name: "{{ instance_name }}"
         region: "{{ region }}"
         user_data: |
           <powershell>

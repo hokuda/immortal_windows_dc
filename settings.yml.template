@@ -1,4 +1,5 @@
 ---
+datetime: "{{ lookup('env', 'DATETIME') }}"
 keyname: "hokuda-key-pair"
 keypath: "~/aws/hokuda-key-pair.pem"
 region: "ap-northeast-1"
@@ -7,12 +8,12 @@ available_zone: "ap-northeast-1a"
 image_id: "ami-02395b2cd6d9a811a" # Microsoft Windows Server 2022 Base
 instance_type: "t2.small"
 
-vpc_name: "hokuda-vpc1"
+vpc_name: "hokuda-vpc1-{{ datetime }}"
 kerberos_realm: "EXAMPLE1.COM"
 domain_name: "example.com"
 base_dn: "DC=EXAMPLE1,DC=COM"
 users_base_dn: "CN=Users,{{ base_dn }}"
-instance_name: "hokuda_win2019-1"
+instance_name: "hokuda_win2019-1-{{ datetime }}"
 password: "xxxxxxxx"
 demo_user_name: "user1"
 demo_group_name: "group1"
