@@ -1,0 +1,8 @@
+- hosts: windows
+  gather_facts: no
+
+  tasks:
+    - name: send
+      win_copy:
+        src: "{{ lookup('env', 'FILE') }}"
+        dest: "C:\\Users\\Administrator\\Documents\\"
