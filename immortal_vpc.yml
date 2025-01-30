@@ -59,7 +59,17 @@
         vpc_id: "{{ _vpc.vpc.id }}"
         description: "security-group-description"
         rules:
-          - proto: "-1"
+          #- ports: "5985"       # winrm/http
+          #  cidr_ip: "0.0.0.0/0"
+          - ports: "5986"       # winrm/https
+            cidr_ip: "0.0.0.0/0"
+          - ports: "3389"       # rdp
+            cidr_ip: "0.0.0.0/0"
+          #- port: "389"        # ldap
+            #  cidr_ip: "0.0.0.0/0"
+          - ports: "636"        # ldaps
+            cidr_ip: "0.0.0.0/0"
+          - ports: "88"         # kerberos
             cidr_ip: "0.0.0.0/0"
         rules_egress:
           - proto: "-1"
