@@ -275,3 +275,47 @@
         name: "{{ demo_group_name }}"
         members:
           - "{{ demo_user_name }}@{{ kerberos_realm }}"
+
+    ####################
+    ### Enable ldaps ###
+    ####################
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Send p12 file'
+      win_copy:
+        src: "new.p12"
+        dest: "C:\\Users\\Administrator\\Documents"
+
+    - name: '{{ lookup(''pipe'', ''date "+%Y/%m/%d %H:%M:%S"'') }} Import p12 file'
+      win_shell: |
+        $CertPath = "C:\Users\Administrator\Documents\new.p12"
+        $CertPassword = "password"
+        # SecureString に変換
+        $PasswordSecure = ConvertTo-SecureString -String $CertPassword -Force -AsPlainText
+        # 証明書を "LocalMachine\My" にインポート
+        $cert = Import-PfxCertificate -FilePath $CertPath -CertStoreLocation "Cert:\LocalMachine\My" -Password $PasswordSecure
+        # インポートした証明書の Thumbprint を取得
+        $thumbprint = $cert.Thumbprint
+        # NTDS サービスの SSL 証明書を設定
+        reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\NTDS\Parameters" /v "SSLCertificateSHA1Hash" /t REG_SZ /d $thumbprint /f
+        # よくわからない
+        $path = "HKLM:\SOFTWARE\Microsoft\Cryptography\Services\NTDS"
+        if (-not(test-path -path $path)){
+          New-Item $path
+        }
+        $path = $path + "\SystemCertificates"
+        if (-not(test-path -path $path)){
+          New-Item $path
+        }
+        $path = $path + "\My"
+        if (-not(test-path -path $path)){
+          New-Item $path
+        }
+        $path = $path + "\Certificates"
+        if (-not(test-path -path $path)){
+          New-Item $path
+        }
+        $copyParameters = @{
+            'Path' = "HKLM:\Software\Microsoft\SystemCertificates\MY\Certificates\$thumbprint"
+            'Destination' = "HKLM:\SOFTWARE\Microsoft\Cryptography\Services\NTDS\SystemCertificates\My\Certificates"
+            'Recurse' = $true
+        }
+        Copy-Item @copyParameters
